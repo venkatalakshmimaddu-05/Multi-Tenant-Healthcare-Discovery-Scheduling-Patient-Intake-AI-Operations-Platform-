@@ -1,0 +1,339 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Hospital {
+  id                String       @id @default(uuid())
+  name              String
+  slug              String       @unique
+  address           String
+  phone             String
+  email             String
+  status            String       @default("APPROVED") // DRAFT, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED, SUSPENDED
+  reviewNotes       String?
+  operatingHours    String?      // JSON string e.g. {"mon-fri": "08:00-18:00"}
+  integrationConfig String?      // JSON configuration for EHR
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  departments       Department[]
+  doctors           Doctor[]
+  questionnaires    Questionnaire[]
+  workflows         Workflow[]
+  appointments      Appointment[]
+  auditEvents       AuditEvent[]
+}
+
+model Department {
+  id          String    @id @default(uuid())
+  hospitalId  String
+  name        String
+  description String?
+  hospital    Hospital  @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  doctors     Doctor[]
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Specialty {
+  id             String    @id @default(uuid())
+  name           String    @unique
+  category       String    @default("General")
+  symptomKeywords String   // Comma separated keywords for NLU matching: "shoulder,joint,knee,fracture"
+  description    String?
+  doctors        Doctor[]
+  questionnaires Questionnaire[]
+
+  createdAt      DateTime  @default(now())
+}
+
+model Doctor {
+  id                 String       @id @default(uuid())
+  hospitalId         String
+  departmentId       String?
+  specialtyId        String
+  name               String
+  photoUrl           String?
+  qualifications     String
+  experienceYears    Int          @default(5)
+  languages          String       @default("English")
+  consultationTypes  String       @default("IN_PERSON,VIDEO")
+  durationMinutes    Int          @default(30)
+  externalProviderId String?
+  status             String       @default("ACTIVE") // INVITED, ACTIVE, INACTIVE, SUSPENDED
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  hospital           Hospital     @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  department         Department?  @relation(fields: [departmentId], references: [id])
+  specialty          Specialty    @relation(fields: [specialtyId], references: [id])
+  calendars          Calendar[]
+  blockedSlots       BlockedSlot[]
+  appointments       Appointment[]
+}
+
+model Calendar {
+  id                  String   @id @default(uuid())
+  doctorId            String
+  dayOfWeek           Int      // 0 = Sunday, 1 = Monday, ... 6 = Saturday
+  startTime           String   // e.g. "09:00"
+  endTime             String   // e.g. "17:00"
+  slotDurationMinutes Int      @default(30)
+  isActive            Boolean  @default(true)
+  doctor              Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model BlockedSlot {
+  id        String   @id @default(uuid())
+  doctorId  String
+  startTime DateTime
+  endTime   DateTime
+  reason    String
+  doctor    Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+model Patient {
+  id                      String   @id @default(uuid())
+  name                    String
+  email                   String   @unique
+  phone                   String
+  dateOfBirth             String?
+  communicationPreference String   @default("VOICE_SMS") // VOICE_SMS, EMAIL, PHONE
+  externalPatientId       String?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  appointments            Appointment[]
+  conversations           AiConversation[]
+  questionnaireResponses  QuestionnaireResponse[]
+  contextPreferences      UserContext?
+}
+
+model UserContext {
+  id                  String   @id @default(uuid())
+  patientId           String   @unique
+  preferredDays       String?  // e.g. "FRIDAY,SATURDAY"
+  preferredTimeOfDay  String?  // e.g. "MORNING", "AFTERNOON"
+  lastDiscoveredSpecialty String?
+  patient             Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  updatedAt           DateTime @updatedAt
+}
+
+model Appointment {
+  id                    String              @id @default(uuid())
+  hospitalId            String
+  doctorId              String
+  patientId             String
+  startTime             DateTime
+  endTime               DateTime
+  type                  String              @default("IN_PERSON") // IN_PERSON, TELEHEALTH
+  status                String              @default("CONFIRMED") // REQUESTED, PENDING, CONFIRMED, RESCHEDULED, CANCELLED, COMPLETED, NO_SHOW, FAILED, SYNCHRONIZATION_PENDING, RECONCILIATION_REQUIRED
+  internalNotes         String?
+  idempotencyKey        String?             @unique
+  correlationId         String
+  externalAppointmentId String?
+  ehrVerificationStatus String              @default("VERIFIED") // PENDING, VERIFIED, FAILED, RECONCILIATION_REQUIRED
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  hospital              Hospital            @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  doctor                Doctor              @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient               Patient             @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  history               AppointmentHistory[]
+  questionnaireResponses QuestionnaireResponse[]
+  workflowExecutions    WorkflowExecution[]
+  reconciliationRecords ReconciliationRecord[]
+}
+
+model AppointmentHistory {
+  id            String      @id @default(uuid())
+  appointmentId String
+  fromStatus    String
+  toStatus      String
+  reason        String?
+  changedBy     String      @default("SYSTEM") // AI_AGENT, PATIENT, DOCTOR, ADMIN, EHR_SYNC
+  timestamp     DateTime    @default(now())
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+}
+
+model ExternalMapping {
+  id          String   @id @default(uuid())
+  entityType  String   // PATIENT, DOCTOR, APPOINTMENT, FACILITY
+  internalId  String
+  externalId  String
+  systemName  String   @default("MOCK_EPIC_EHR")
+  metadata    String?  // JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([entityType, internalId, systemName])
+}
+
+model IntegrationOperation {
+  id              String   @id @default(uuid())
+  correlationId   String
+  operationType   String   // CREATE_APPOINTMENT, VERIFY_APPOINTMENT, RESCHEDULE_APPOINTMENT, CANCEL_APPOINTMENT, QUERY_PATIENT
+  status          String   // SUCCESS, TIMEOUT, FAILED, RETRIED, RECONCILED
+  systemName      String   @default("MOCK_EPIC_EHR")
+  requestPayload  String?  // JSON
+  responsePayload String?  // JSON
+  errorDetails    String?
+  retryCount      Int      @default(0)
+  durationMs      Int      @default(0)
+  timestamp       DateTime @default(now())
+}
+
+model ReconciliationRecord {
+  id              String       @id @default(uuid())
+  correlationId   String
+  appointmentId   String?
+  reason          String
+  status          String       @default("PENDING_REVIEW") // PENDING_REVIEW, RESOLVED, ESCALATED
+  resolutionNotes String?
+  externalData    String?      // JSON snapshot of what external EHR returned
+  internalData    String?      // JSON snapshot of what internal state expected
+  createdAt       DateTime     @default(now())
+  resolvedAt      DateTime?
+  appointment     Appointment? @relation(fields: [appointmentId], references: [id])
+}
+
+model Questionnaire {
+  id          String                  @id @default(uuid())
+  hospitalId  String
+  specialtyId String?
+  title       String
+  description String?
+  schemaJson  String                  // Form schema: [{"id":"q1","type":"yes_no","prompt":"..."},{"id":"q2","type":"choice","options":["..."]}]
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  hospital    Hospital                @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  specialty   Specialty?              @relation(fields: [specialtyId], references: [id])
+  responses   QuestionnaireResponse[]
+}
+
+model QuestionnaireResponse {
+  id              String        @id @default(uuid())
+  questionnaireId String
+  appointmentId   String
+  patientId       String
+  responsesJson   String        // Structured patient answers
+  completedAt     DateTime      @default(now())
+
+  questionnaire   Questionnaire @relation(fields: [questionnaireId], references: [id], onDelete: Cascade)
+  appointment     Appointment   @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  patient         Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model Workflow {
+  id           String              @id @default(uuid())
+  hospitalId   String
+  triggerEvent String              // APPOINTMENT_BOOKED, APPOINTMENT_RESCHEDULED, APPOINTMENT_CANCELLED
+  name         String
+  description  String?
+  configJson   String              // Actions, delays, conditions
+  isActive     Boolean             @default(true)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  hospital     Hospital            @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  executions   WorkflowExecution[]
+}
+
+model WorkflowExecution {
+  id            String      @id @default(uuid())
+  workflowId    String
+  appointmentId String
+  status        String      @default("COMPLETED") // RUNNING, COMPLETED, FAILED, RETRIED
+  executionLog  String?     // Step by step execution trace
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  workflow      Workflow    @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id               String   @id @default(uuid())
+  correlationId    String?
+  recipientType    String   // PATIENT, DOCTOR, HOSPITAL_ADMIN
+  recipientContact String
+  channel          String   @default("VOICE_SMS") // VOICE_SMS, EMAIL, IN_APP
+  subject          String
+  message          String
+  status           String   @default("SENT") // SENT, PENDING, FAILED
+  sentAt           DateTime @default(now())
+}
+
+model AiConversation {
+  id                   String               @id @default(uuid())
+  patientId            String?
+  channel              String               @default("WEB_VOICE") // WEB_VOICE, WEB_CHAT, TELEPHONE
+  status               String               @default("ACTIVE")    // ACTIVE, COMPLETED, ESCALATED
+  correlationId        String               @unique
+  startedAt            DateTime             @default(now())
+  endedAt              DateTime?
+  transcriptJson       String               @default("[]")
+
+  patient              Patient?             @relation(fields: [patientId], references: [id])
+  context              AiContext?
+  capabilityExecutions CapabilityExecution[]
+}
+
+model AiContext {
+  id                 String         @id @default(uuid())
+  conversationId     String         @unique
+  currentIntent      String?
+  selectedHospitalId String?
+  selectedDoctorId   String?
+  selectedSlotTime   String?
+  extractedEntities  String?        // JSON: symptoms, timeframe, preferredDays
+  conversation       AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  updatedAt          DateTime       @updatedAt
+}
+
+model CapabilityExecution {
+  id             String         @id @default(uuid())
+  conversationId String?
+  correlationId  String
+  capabilityName String
+  inputPayload   String?        // JSON
+  outputPayload  String?        // JSON
+  status         String         @default("SUCCESS") // SUCCESS, VALIDATION_ERROR, EXECUTION_ERROR
+  latencyMs      Int            @default(0)
+  executedAt     DateTime       @default(now())
+  conversation   AiConversation? @relation(fields: [conversationId], references: [id])
+}
+
+model AuditEvent {
+  id            String    @id @default(uuid())
+  correlationId String
+  hospitalId    String?
+  actorRole     String    // PATIENT, DOCTOR, HOSPITAL_ADMIN, PLATFORM_ADMIN, AI_AGENT, SYSTEM
+  actorId       String?
+  action        String    // LOGIN, BOOK_APPOINTMENT, VERIFY_EHR, CANCEL_APPOINTMENT, RESCHEDULE, QUESTIONNAIRE_SUBMIT
+  entityType    String    // APPOINTMENT, PATIENT, DOCTOR, HOSPITAL, EHR_RECORD
+  entityId      String?
+  detailsJson   String?
+  timestamp     DateTime  @default(now())
+  hospital      Hospital? @relation(fields: [hospitalId], references: [id])
+}
+
+model OperationalMetric {
+  id            String   @id @default(uuid())
+  metricName    String   // AI_LATENCY_MS, CAPABILITY_CALL_COUNT, EHR_TIMEOUT_COUNT, BOOKING_COUNT
+  metricValue   Float
+  dimensions    String?  // JSON
+  timestamp     DateTime @default(now())
+}

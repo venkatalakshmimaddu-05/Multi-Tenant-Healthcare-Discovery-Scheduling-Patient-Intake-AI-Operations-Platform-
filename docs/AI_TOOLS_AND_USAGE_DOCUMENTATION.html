@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AuraCare AI - AI Tools & Usage Documentation</title>
+<style>
+  @page { size: A4; margin: 20mm; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1e293b;
+    line-height: 1.6;
+    margin: 0;
+    padding: 24px;
+    background: #fff;
+  }
+  h1 { font-size: 24pt; color: #0f172a; border-bottom: 2px solid #7c3aed; padding-bottom: 8px; margin-bottom: 4px; }
+  .subtitle { font-size: 12pt; color: #64748b; margin-bottom: 24px; font-weight: 500; }
+  h2 { font-size: 15pt; color: #6d28d9; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-top: 24px; page-break-after: avoid; }
+  h3 { font-size: 12pt; color: #0f172a; margin-top: 16px; page-break-after: avoid; }
+  p, li { font-size: 10pt; color: #334155; }
+  ul { padding-left: 20px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: #f1f5f9; padding: 2px 5px; border-radius: 4px; font-size: 9pt; color: #6d28d9; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 14px; border-radius: 8px; font-size: 8.5pt; overflow-x: auto; line-height: 1.4; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 9pt; }
+  th { background: #f8fafc; color: #0f172a; font-weight: 600; text-align: left; padding: 8px 10px; border: 1px solid #cbd5e1; }
+  td { padding: 8px 10px; border: 1px solid #e2e8f0; vertical-align: top; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  .box { background: #faf5ff; border-left: 4px solid #7c3aed; padding: 12px 16px; border-radius: 4px; margin: 14px 0; }
+  .page-break { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<h1>AuraCare AI — AI Tools & Usage Documentation</h1>
+<div class="subtitle">Agentic Architecture, Tool Calling Schemas, Clinical Ontologies & Evaluation Framework</div>
+
+<div class="box">
+  <strong>Overview:</strong> This document details the artificial intelligence architecture powering AuraCare AI, including Large Language Model orchestration, agentic tool-calling contracts, speech-to-speech realtime processing, controlled medical ontologies, and safety verification methodologies.
+</div>
+
+<h2>1. AI Models & Voice Technologies</h2>
+<table>
+  <thead>
+    <tr><th>Layer</th><th>Technology / Model</th><th>Purpose & Implementation</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Reasoning Engine</strong></td>
+      <td><code>OpenAI GPT-4o / Realtime API</code></td>
+      <td>Handles conversational intent classification, multi-turn state management, dynamic clarification, and tool call generation.</td>
+    </tr>
+    <tr>
+      <td><strong>Voice Telephony</strong></td>
+      <td><code>Twilio Voice &amp; TwiML</code></td>
+      <td>PSTN phone integration answering incoming patient calls via TwiML XML webhooks and streaming audio.</td>
+    </tr>
+    <tr>
+      <td><strong>Neural TTS</strong></td>
+      <td><code>Amazon Polly Joanna-Neural</code></td>
+      <td>High-fidelity, low-latency neural text-to-speech rendering conversational voice responses with natural prosody.</td>
+    </tr>
+    <tr>
+      <td><strong>In-Browser Speech</strong></td>
+      <td><code>Web Speech API &amp; WebRTC</code></td>
+      <td>Dual-mode zero-cost local evaluation enabling microphone capture and real-time client audio rendering.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>2. Agentic Tool Calling (Capability Manager)</h2>
+<p>The AI Agent interacts with the healthcare platform through strictly typed capability tools. The agent does not directly manipulate the database; it executes validated capabilities via <code>CapabilityManager</code>:</p>
+
+<h3>Capability 1: <code>check_availability</code></h3>
+<pre>
+{
+  "name": "check_availability",
+  "description": "Discovers available real appointment slots for a specific specialty, doctor, hospital, or timeframe.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "specialty": { "type": "string", "description": "e.g. Dermatology, Cardiology, ENT" },
+      "doctorName": { "type": "string", "description": "Optional specific physician name" },
+      "hospitalId": { "type": "string", "description": "Optional specific hospital ID" },
+      "timeframe": { "type": "string", "description": "e.g. today, tomorrow, friday, next_available" }
+    },
+    "required": ["specialty"]
+  }
+}
+</pre>
+
+<h3>Capability 2: <code>create_appointment</code></h3>
+<pre>
+{
+  "name": "create_appointment",
+  "description": "Atomically books a verified appointment slot, acquires a concurrency lock, and synchronizes with the EHR.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "doctorId": { "type": "string" },
+      "patientId": { "type": "string" },
+      "hospitalId": { "type": "string" },
+      "startTime": { "type": "string", "format": "date-time" },
+      "chiefComplaint": { "type": "string" }
+    },
+    "required": ["doctorId", "patientId", "startTime"]
+  }
+}
+</pre>
+
+<h3>Capability 3: <code>reschedule_appointment</code></h3>
+<pre>
+{
+  "name": "reschedule_appointment",
+  "description": "Atomically updates an existing appointment to a new slot while releasing the prior slot in the EHR.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "appointmentId": { "type": "string" },
+      "newStartTime": { "type": "string", "format": "date-time" }
+    },
+    "required": ["appointmentId", "newStartTime"]
+  }
+}
+</pre>
+
+<div class="page-break"></div>
+
+<h2>3. Clinical Knowledge Representation & Safety Rules</h2>
+<p>To eliminate medical hallucination and ad-hoc <code>if/else</code> patches, all medical intelligence is codified in a modular domain knowledge base (<code>src/lib/clinical/</code>):</p>
+<ul>
+  <li><strong>50+ Controlled Concepts:</strong> Standardized terms, natural-language synonyms, anatomical locations, and colloquial phrasings (e.g. <em>"belly in knots"</em> &rarr; abdominal pain, <em>"pins and needles"</em> &rarr; numbness/tingling, <em>"room spinning"</em> &rarr; vertigo).</li>
+  <li><strong>4-Way Assertion Polarity:</strong>
+    <ul>
+      <li><code>PRESENT</code>: Confirmed symptom reported by patient.</li>
+      <li><code>NEGATED</code>: Explicitly denied symptom (e.g. <em>"no fever"</em>, <em>"haven't vomited"</em>). Preserved in <code>denied_symptoms</code> to prevent re-questioning.</li>
+      <li><code>UNCERTAIN</code>: Equivocal presentation (e.g. <em>"maybe a fever"</em>, <em>"might have slight chills"</em>).</li>
+      <li><code>UNKNOWN</code>: Unstated attribute.</li>
+    </ul>
+  </li>
+  <li><strong>Deterministic Red-Flag Layer:</strong> Independent safety rules run <em>prior</em> to routine scheduling. Mandatory emergency 911 / ER escalation that cannot be overridden by conversational prompts.</li>
+</ul>
+
+<h2>4. Development, Testing & Verification Stack</h2>
+<table>
+  <thead>
+    <tr><th>Category</th><th>Tool</th><th>Usage & Impact</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Automated Testing</strong></td>
+      <td><code>Vitest 2.0</code></td>
+      <td>59 unit and integration tests covering scheduling concurrency, EHR failure modes, clinical entity polarity, and end-to-end multi-turn dialogue.</td>
+    </tr>
+    <tr>
+      <td><strong>Database ORM</strong></td>
+      <td><code>Prisma 5.17</code></td>
+      <td>Type-safe multi-tenant schema migrations, relations, and atomic transactions.</td>
+    </tr>
+    <tr>
+      <td><strong>Web Framework</strong></td>
+      <td><code>Next.js 14 (App Router)</code></td>
+      <td>Server-side API routes, React server components, and responsive Tailwind UI across 18 routes.</td>
+    </tr>
+    <tr>
+      <td><strong>Execution Engine</strong></td>
+      <td><code>tsx &amp; Node.js</code></td>
+      <td>High-speed TypeScript script runner for database seeding, automated health checks, and cryptographic verification.</td>
+    </tr>
+  </tbody>
+</table>
+
+</body>
+</html>

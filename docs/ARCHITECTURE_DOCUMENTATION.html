@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AuraCare AI - System Architecture Documentation</title>
+<style>
+  @page { size: A4; margin: 20mm; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1e293b;
+    line-height: 1.6;
+    margin: 0;
+    padding: 24px;
+    background: #fff;
+  }
+  h1 { font-size: 24pt; color: #0f172a; border-bottom: 2px solid #0284c7; padding-bottom: 8px; margin-bottom: 4px; }
+  .subtitle { font-size: 12pt; color: #64748b; margin-bottom: 24px; font-weight: 500; }
+  h2 { font-size: 15pt; color: #0369a1; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-top: 24px; page-break-after: avoid; }
+  h3 { font-size: 12pt; color: #0f172a; margin-top: 16px; page-break-after: avoid; }
+  p, li { font-size: 10pt; color: #334155; }
+  ul { padding-left: 20px; }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; background: #f1f5f9; padding: 2px 5px; border-radius: 4px; font-size: 9pt; color: #0369a1; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 14px; border-radius: 8px; font-size: 8.5pt; overflow-x: auto; line-height: 1.4; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 9pt; }
+  th { background: #f8fafc; color: #0f172a; font-weight: 600; text-align: left; padding: 8px 10px; border: 1px solid #cbd5e1; }
+  td { padding: 8px 10px; border: 1px solid #e2e8f0; vertical-align: top; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 8pt; font-weight: 600; }
+  .badge-blue { background: #e0f2fe; color: #0369a1; }
+  .badge-green { background: #dcfce7; color: #15803d; }
+  .badge-purple { background: #f3e8ff; color: #7e22ce; }
+  .box { background: #f0f9ff; border-left: 4px solid #0284c7; padding: 12px 16px; border-radius: 4px; margin: 14px 0; }
+  .page-break { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<h1>AuraCare AI — System Architecture</h1>
+<div class="subtitle">Autonomous Multi-Tenant Healthcare Access, Clinical Triage & Central Scheduling Platform</div>
+
+<div class="box">
+  <strong>Executive Overview:</strong> AuraCare AI eliminates healthcare administrative friction and clinical department silos by providing an autonomous, voice-first patient access engine. Patients describe symptoms naturally; the platform performs risk-stratified clinical entity extraction, deterministic red-flag emergency screening, dynamic missing-information discovery, multi-system differential formulation, and atomic EHR appointment booking with verified availability across multiple independent hospital organizations.
+</div>
+
+<h2>1. High-Level Architectural Topology</h2>
+<pre>
+                                PATIENT CHANNELS
+              ┌─────────────────────────┴─────────────────────────┐
+              ▼                                                   ▼
+     [Telephone Dial-In]                                 [Web / WebRTC Voice]
+   (Twilio Voice & TwiML)                              (MediaDevices / AudioContext)
+              │                                                   │
+              └─────────────────────────┬─────────────────────────┘
+                                        ▼
+                         [Autonomous AI Agent Engine]
+             (Natural Language Understanding, Intent & State Machine)
+                                        │
+           ┌────────────────────────────┼────────────────────────────┐
+           ▼                            ▼                            ▼
+[Clinical Triage Engine]     [Central Scheduling Engine]     [EHR Integration Broker]
+ ├─ Clinical Entity Extractor ├─ Distributed Redis Lock       ├─ FHIR Appointment Resource
+ ├─ 4-Way Polarity Analyzer   ├─ Concurrency Shield           ├─ Idempotent Retries
+ ├─ Red-Flag Safety Layer     ├─ Multi-Hospital Discovery     ├─ Unknown Outcome Recovery
+ └─ Specialty Router          └─ Atomic Slot Commit           └─ Outage Reconciliation
+           │                            │                            │
+           └────────────────────────────┼────────────────────────────┘
+                                        ▼
+                           [Prisma Multi-Tenant ORM]
+                                        ▼
+                         [PostgreSQL / SQLite Database]
+ ┌──────────────────────┬──────────────────────┬──────────────────────┐
+ │ Hospital Tenants (3) │ Doctor Rosters (9)   │ Departments (9)      │
+ ├──────────────────────┼──────────────────────┼──────────────────────┤
+ │ Appointments & Slots │ Questionnaires (9)   │ Audit Traces (160+)  │
+ └──────────────────────┴──────────────────────┴──────────────────────┘
+</pre>
+
+<h2>2. The 9-Stage Clinical Reasoning & Safety Pipeline</h2>
+<p>The medical symptom assessment engine enforces a strict 9-stage clinical reasoning process compliant with PRD Section 20 Clinical Safety Guardrails:</p>
+<table>
+  <thead>
+    <tr><th>Stage</th><th>Component</th><th>Clinical Function</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>1</strong></td><td><code>Patient Input</code></td><td>Captures patient unstructured natural-language voice or text input, preserving verbatim wording.</td></tr>
+    <tr><td><strong>2</strong></td><td><code>Entity Extraction</code></td><td>Extracts standardized clinical concepts across 9 organ systems without prematurely assigning diagnostic labels.</td></tr>
+    <tr><td><strong>3</strong></td><td><code>Structured State</code></td><td>Maintains persistent state tracking 4-way polarity: <code>PRESENT</code>, <code>NEGATED</code> (e.g. "no fever"), <code>UNCERTAIN</code>, and <code>UNKNOWN</code>.</td></tr>
+    <tr><td><strong>4</strong></td><td><code>Red-Flag Screening</code></td><td>Deterministic safety layer evaluates ACS, Stroke (FAST), Thunderclap headache, acute GI bleeding, and anaphylaxis prior to routine scheduling. Mandatory 911 / ER refusal.</td></tr>
+    <tr><td><strong>5</strong></td><td><code>Missing-Info Detection</code></td><td>Prioritizes missing information: Emergency risk &gt; Differential discrimination &gt; Care level. Excludes known/negated factors.</td></tr>
+    <tr><td><strong>6</strong></td><td><code>Differential Formulation</code></td><td>Evaluates multi-system differentials with expressed uncertainty ("several possibilities such as...").</td></tr>
+    <tr><td><strong>7</strong></td><td><code>Dynamic Follow-Up</code></td><td>Selects at most ONE focused follow-up question per turn to avoid cognitive overload.</td></tr>
+    <tr><td><strong>8</strong></td><td><code>Specialty Triage</code></td><td>Routes accurately (Abdominal &rarr; Gastroenterology, Ear &rarr; ENT, Eye &rarr; Ophthalmology, Rash &rarr; Dermatology, Joint &rarr; Orthopedics).</td></tr>
+    <tr><td><strong>9</strong></td><td><code>Voice Response</code></td><td>Generates empathetic, clinical voice response with auditable <code>reasoning_basis</code> without leaking private chain-of-thought.</td></tr>
+  </tbody>
+</table>
+
+<div class="page-break"></div>
+
+<h2>3. Multi-Tenancy, Roles & Security (RBAC)</h2>
+<p>The platform enforces strict cryptographic Role-Based Access Control and multi-tenant data boundaries:</p>
+<table>
+  <thead>
+    <tr><th>Role</th><th>Access Level</th><th>Cryptographic Scope</th><th>Security Enforcement</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="badge badge-purple">PLATFORM_ADMIN</span></td>
+      <td>Super Admin</td>
+      <td>Global (All Tenants)</td>
+      <td>Hospital onboarding approval, global system health, correlation ID audit traces, EHR failure mode simulations.</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-blue">HOSPITAL_ADMIN</span></td>
+      <td>Tenant Admin</td>
+      <td><code>hospitalId</code> Scoped</td>
+      <td><code>TenantGuard</code> restricts access exclusively to assigned hospital's doctors, departments, scheduling rules, and EHR credentials.</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-green">DOCTOR</span></td>
+      <td>Provider Workbench</td>
+      <td><code>doctorId</code> &amp; <code>hospitalId</code></td>
+      <td>Physicians only access their personal consultation schedule, patient intake responses, and slot-blocking calendar. Cross-doctor viewing is blocked.</td>
+    </tr>
+    <tr>
+      <td><span class="badge badge-blue">PATIENT</span></td>
+      <td>End User</td>
+      <td><code>patientId</code> Scoped</td>
+      <td>Patients interact with the Voice AI assistant, view verified appointments, and complete pre-visit questionnaires.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>4. EHR Integration & PRD Section 28 Failure Recovery</h2>
+<p>To ensure resilient healthcare-system interoperability, all booking operations go through an external EHR broker supporting three deterministic failure recovery strategies:</p>
+<ul>
+  <li><strong>Option A (Transient Timeout):</strong> Categorizes network latency or timeouts as retryable; automatically retries using an unqiue <code>idempotencyKey</code> to ensure safe execution without double charging or duplicate slots.</li>
+  <li><strong>Option B (Unknown Outcome):</strong> If the network drops during an in-flight booking, the broker executes a query-before-insert against the external EHR. If the record exists, it synchronizes state without creating a duplicate.</li>
+  <li><strong>Option C (Unrecoverable Outage):</strong> Upon persistent third-party downtime, the system flags the appointment as <code>RECONCILIATION_REQUIRED</code>, logs an incident report in <code>IntegrationOperation</code>, and immediately dispatches an urgent in-app alert to the hospital administrator for manual resolution.</li>
+</ul>
+
+<h2>5. Distributed Concurrency & Double-Booking Prevention</h2>
+<p>When multiple callers compete for the same doctor slot simultaneously (e.g. Monday 9:00 AM):</p>
+<ol>
+  <li><strong>Distributed Lock Acquisition:</strong> Acquires a temporary lock on <code>lock:doctor:{doctorId}:{slotTimestamp}</code> via Redis / Lock Simulator with an automated TTL.</li>
+  <li><strong>Two-Phase Verification:</strong> Verifies doctor availability in internal database, checks doctor personal blocked slots, and queries the external EHR.</li>
+  <li><strong>Atomic Transaction Commit:</strong> Executes slot creation within an atomic database transaction. Any competing caller receives an immediate, polite voice redirect offering the next closest alternative opening.</li>
+</ol>
+
+<h2>6. End-to-End Auditability & Tracing</h2>
+<p>Every interaction is tagged with an immutable <code>correlationId</code> spanning all system tiers: Voice Transcript &rarr; AI Intent Extraction &rarr; Capability Execution &rarr; EHR Sync &rarr; Notification Dispatch. Compliance teams can inspect complete execution traces in the Platform Admin Portal.</p>
+
+</body>
+</html>

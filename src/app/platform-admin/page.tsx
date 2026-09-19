@@ -38,25 +38,25 @@ export default function PlatformAdminPortal() {
     setLoading(true);
     try {
       const [hospRes, metRes, auditRes, ehrModeRes] = await Promise.all([
-        fetch("/api/hospitals"),
-        fetch("/api/metrics"),
-        fetch("/api/audit"),
-        fetch("/api/ehr/simulate-failure"),
+        fetch("/api/hospitals").catch(() => null),
+        fetch("/api/metrics").catch(() => null),
+        fetch("/api/audit").catch(() => null),
+        fetch("/api/ehr/simulate-failure").catch(() => null),
       ]);
 
-      const [hospData, metData, auditData, ehrModeData] = await Promise.all([
-        hospRes.json(),
-        metRes.json(),
-        auditRes.json(),
-        ehrModeRes.json(),
-      ]);
+      const hospData = hospRes && hospRes.ok ? await hospRes.json().catch(() => []) : [];
+      const metData = metRes && metRes.ok ? await metRes.json().catch(() => null) : null;
+      const auditData = auditRes && auditRes.ok ? await auditRes.json().catch(() => []) : [];
+      const ehrModeData = ehrModeRes && ehrModeRes.ok ? await ehrModeRes.json().catch(() => ({})) : {};
 
-      setHospitals(hospData);
-      setMetrics(metData);
-      setAuditEvents(auditData);
-      if (ehrModeData.mode) setSelectedFailureMode(ehrModeData.mode);
+      setHospitals(Array.isArray(hospData) ? hospData : []);
+      setMetrics(metData && typeof metData === "object" && !metData.error ? metData : null);
+      setAuditEvents(Array.isArray(auditData) ? auditData : []);
+      if (ehrModeData && ehrModeData.mode) setSelectedFailureMode(ehrModeData.mode);
     } catch (err) {
       console.error(err);
+      setHospitals([]);
+      setAuditEvents([]);
     } finally {
       setLoading(false);
     }
@@ -228,7 +228,7 @@ export default function PlatformAdminPortal() {
           </div>
 
           <div className="space-y-3">
-            {hospitals.map((hosp) => (
+            {(Array.isArray(hospitals) ? hospitals : []).map((hosp) => (
               <div
                 key={hosp.id}
                 className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-wrap items-center justify-between gap-4 text-xs"
@@ -328,7 +328,7 @@ export default function PlatformAdminPortal() {
             {/* Recent Correlation IDs Chips */}
             <div className="flex items-center gap-1.5 flex-wrap text-xs pt-1">
               <span className="text-slate-500 font-semibold text-[11px]">Recent Correlation IDs:</span>
-              {Array.from(new Set(auditEvents.map((a) => a.correlationId)))
+              {Array.from(new Set((Array.isArray(auditEvents) ? auditEvents : []).map((a) => a.correlationId)))
                 .slice(0, 5)
                 .map((id) => (
                   <button

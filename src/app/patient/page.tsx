@@ -27,10 +27,11 @@ export default function PatientPortal() {
     setLoading(true);
     try {
       const res = await fetch("/api/appointments");
-      const data = await res.json();
-      setAppointments(data);
+      const data = res.ok ? await res.json() : [];
+      setAppointments(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error(err);
+      setAppointments([]);
     } finally {
       setLoading(false);
     }
@@ -132,7 +133,7 @@ export default function PatientPortal() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {appointments.map((appt) => (
+            {(Array.isArray(appointments) ? appointments : []).map((appt) => (
               <div
                 key={appt.id}
                 className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4 hover:border-slate-300 transition"

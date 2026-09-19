@@ -28,14 +28,16 @@ export default function HospitalAdminPortal() {
   const fetchHospitals = async () => {
     try {
       const res = await fetch("/api/hospitals?status=APPROVED");
-      const data = await res.json();
-      setHospitals(data);
-      if (data.length > 0) {
-        setSelectedHospitalId(data[0].id);
-        setHospitalData(data[0]);
+      const data = res.ok ? await res.json() : [];
+      const valid = Array.isArray(data) ? data : [];
+      setHospitals(valid);
+      if (valid.length > 0) {
+        setSelectedHospitalId(valid[0].id);
+        setHospitalData(valid[0]);
       }
     } catch (err) {
       console.error(err);
+      setHospitals([]);
     } finally {
       setLoading(false);
     }
@@ -76,7 +78,7 @@ export default function HospitalAdminPortal() {
             onChange={(e) => handleHospitalChange(e.target.value)}
             className="px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
           >
-            {hospitals.map((h) => (
+            {(Array.isArray(hospitals) ? hospitals : []).map((h) => (
               <option key={h.id} value={h.id}>
                 {h.name}
               </option>

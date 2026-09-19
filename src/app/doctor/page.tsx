@@ -35,14 +35,16 @@ export default function DoctorPortal() {
   const fetchDoctors = async () => {
     try {
       const res = await fetch("/api/doctors");
-      const docs = await res.json();
-      setDoctors(docs);
-      if (docs.length > 0) {
-        setSelectedDoctorId(docs[0].id);
-        fetchDoctorDetails(docs[0].id);
+      const docs = res.ok ? await res.json() : [];
+      const validDocs = Array.isArray(docs) ? docs : [];
+      setDoctors(validDocs);
+      if (validDocs.length > 0) {
+        setSelectedDoctorId(validDocs[0].id);
+        fetchDoctorDetails(validDocs[0].id);
       }
     } catch (err) {
       console.error(err);
+      setDoctors([]);
     }
   };
 
@@ -124,7 +126,7 @@ export default function DoctorPortal() {
             onChange={(e) => handleDoctorChange(e.target.value)}
             className="px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
           >
-            {doctors.map((d) => (
+            {(Array.isArray(doctors) ? doctors : []).map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name} — {d.specialty?.name} ({d.hospital?.name})
               </option>

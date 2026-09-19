@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { 
   Calendar, 
   Clock, 
@@ -14,11 +15,11 @@ import {
   RefreshCw, 
   FileText, 
   Radio, 
-  ArrowRight,
+  ArrowRight, 
   ShieldCheck
 } from "lucide-react";
 
-export default function PatientPortal() {
+function PatientPortalContent() {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -241,3 +242,13 @@ export default function PatientPortal() {
     </div>
   );
 }
+
+export default dynamic(() => Promise.resolve(PatientPortalContent), {
+  ssr: false,
+  loading: () => (
+    <div className="max-w-7xl mx-auto px-4 py-16 text-center text-slate-400 text-xs flex flex-col items-center justify-center space-y-3">
+      <div className="w-8 h-8 rounded-full border-2 border-sky-500 border-t-transparent animate-spin"></div>
+      <span>Loading Patient Workspace...</span>
+    </div>
+  ),
+});

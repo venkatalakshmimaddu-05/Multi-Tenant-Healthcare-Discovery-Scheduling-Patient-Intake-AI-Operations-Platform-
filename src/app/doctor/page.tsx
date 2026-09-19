@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { 
   Stethoscope, 
   Calendar, 
@@ -16,7 +17,7 @@ import {
   Eye
 } from "lucide-react";
 
-export default function DoctorPortal() {
+function DoctorPortalContent() {
   const [doctors, setDoctors] = useState<any[]>([]);
   const [selectedDoctorId, setSelectedDoctorId] = useState<string>("");
   const [doctorData, setDoctorData] = useState<any | null>(null);
@@ -360,3 +361,13 @@ export default function DoctorPortal() {
     </div>
   );
 }
+
+export default dynamic(() => Promise.resolve(DoctorPortalContent), {
+  ssr: false,
+  loading: () => (
+    <div className="max-w-7xl mx-auto px-4 py-16 text-center text-slate-400 text-xs flex flex-col items-center justify-center space-y-3">
+      <div className="w-8 h-8 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin"></div>
+      <span>Loading Physician Workspace...</span>
+    </div>
+  ),
+});

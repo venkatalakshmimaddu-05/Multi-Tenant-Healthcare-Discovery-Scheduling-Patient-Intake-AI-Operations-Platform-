@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { 
   Building2, 
   Stethoscope, 
@@ -15,7 +16,7 @@ import {
   Users
 } from "lucide-react";
 
-export default function HospitalAdminPortal() {
+function HospitalAdminContent() {
   const [hospitals, setHospitals] = useState<any[]>([]);
   const [selectedHospitalId, setSelectedHospitalId] = useState<string>("");
   const [hospitalData, setHospitalData] = useState<any | null>(null);
@@ -210,3 +211,13 @@ export default function HospitalAdminPortal() {
     </div>
   );
 }
+
+export default dynamic(() => Promise.resolve(HospitalAdminContent), {
+  ssr: false,
+  loading: () => (
+    <div className="max-w-7xl mx-auto px-4 py-16 text-center text-slate-400 text-xs flex flex-col items-center justify-center space-y-3">
+      <div className="w-8 h-8 rounded-full border-2 border-amber-500 border-t-transparent animate-spin"></div>
+      <span>Loading Hospital Admin Console...</span>
+    </div>
+  ),
+});
